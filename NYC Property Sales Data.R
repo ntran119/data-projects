@@ -6,7 +6,7 @@ data.world::set_config(saved_cfg)
 
 vignette("quickstart", package = "data.world")
 
-nyc_df <- data.world::(
-  data.world::qry_sql('SELECT * FROM NYC_property_sales.csv'),
+nyc_df <- data.world::query(
+  data.world::qry_sql('SELECT * FROM NYC_property_sales'),
   dataset = 'https://data.world/dataquest/nyc-property-sales-data'
 )
