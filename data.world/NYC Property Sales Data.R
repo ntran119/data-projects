@@ -2,6 +2,7 @@
 # New York City Property Sales
 # @ntran119
 
+#### import dataframe with SQL ####
 #install.packages("devtools")
 library(devtools)
 devtools::install_github("datadotworld/data.world-r", build_vignettes = TRUE)
@@ -15,6 +16,8 @@ nyc_df <- data.world::query(
   data.world::qry_sql('SELECT * FROM NYC_property_sales'),
   dataset = 'https://data.world/dataquest/nyc-property-sales-data')
 
+
+#### explore data with graphs ####
 
 glimpse(nyc_df)
 
@@ -79,3 +82,106 @@ nyc_condos3 <- nyc_condos2 %>%
 
 #check to see if it was correctly removed
 any(nyc_condos3$sale_price == 29620207)
+
+multi_unit_sales <- nyc_condos3 %>%
+  group_by(sale_price, sale_date) %>%
+  filter(n() > 3) %>%
+  arrange(desc(sale_price))
+
+#remove multi unit sales
+nyc_condos4 <- nyc_condos3 %>%
+  anti_join(multi_unit_sales)
+
+#### Linear Regression ####
+
+nyc_condos_lm <- lm(sale_price ~ gross_square_feet, data = nyc_condos4)
+nyc_condos_orignal <- lm(sale_price ~ gross_square_feet, data = nyc_condos)
+
+summary(nyc_condos_lm)
+
+summary(nyc_condos_orignal)
+
+#confidence intervals
+confint(nyc_condos_lm)
+confint(nyc_condos_orignal)
+
+#residual standard error
+sigma(nyc_condos_lm)
+sigma(nyc_condos_orignal)
+
+
+ggplot(nyc_condos, aes(x=gross_square_feet, y=sale_price, colour=borough)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = 'lm', se = FALSE) +
+  theme_minimal() +
+  facet_wrap(facets = vars(borough), scales = 'free', ncol = 2) +
+  scale_y_continuous(labels = scales::comma)
+
+#### LM for each borough ####
+
+library(broom)
+library(purrr)
+
+nested_boroughs <- nyc_condos4 %>%
+  group_by(borough) %>%
+  nest()
+
+print(nested_boroughs)
+
+head(nested_boroughs$data[[3]])
+
+nyc_coeff <- nyc_condos4 %>%
+  group_by(borough) %>%
+  nest() %>%
+  mutate(linear_model = map(.x = data,
+                            .f = ~lm(sale_price ~ gross_square_feet, data = .)))
+
+print(nyc_coeff)
+
+summary(nyc_coeff$linear_model[[3]])
+
+#R-squared = 0.63, 63% of the variability of sale_price is explained by gross_square_feet
+
+# transform into tidy format
+
+nyc_tidy <- nyc_condos4 %>%
+  group_by(borough) %>%
+  nest() %>%
+  mutate(linear_model = map(.x = data,
+                            .f = ~lm(sale_price ~ gross_square_feet, 
+                                     data = .))) %>%
+  mutate(tidy_coeff = map(.x = linear_model,
+                          .f = tidy,
+                          conf.int = TRUE))
+nyc_tidy
+nyc_tidy$tidy_coeff[[3]]
+
+nyc_tidy_2 <- nyc_tidy %>%
+  select(borough, tidy_coeff) %>%
+  unnest(cols = tidy_coeff)
+
+nyc_tidy_2
+
+nyc_slope <- nyc_tidy_2 %>%
+  filter(term == 'gross_square_feet') %>%
+  arrange(estimate)
+
+#### Regression Summary Statistics ####
+
+nyc_sum <- nyc_condos4 %>%
+  group_by(borough) %>%
+  nest() %>%
+  mutate(linear_model = map(.x = data,
+                            .f = ~lm(sale_price ~ gross_square_feet, 
+                                     data = .))) %>%
+  mutate(tidy_coeff = map(.x = linear_model,
+                          .f = tidy,
+                          conf.int = TRUE)) %>%
+  mutate(tidy_sum = map(.x = linear_model,
+                        .f = glance))
+nyc_sum
+
+nyc_sum_tidy <- nyc_sum %>%
+  select(borough, tidy_sum) %>%
+  unnest(cols = tidy_sum) %>%
+  arrange(r.squared)
