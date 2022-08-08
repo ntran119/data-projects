@@ -49,4 +49,57 @@ colnames(cars_df) <- c(
   "price"
 )
 
+cars2 <- cars %>% 
+  select(
+    symboling, wheel_base, length, width, height, curb_weight,
+    engine_size, bore, stroke, compression_ratio, horsepower, 
+    peak_rpm, city_mpg, highway_mpg, price
+  ) %>% 
+  filter(
+    stroke != "?",
+    bore != "?",
+    horsepower != "?",
+    peak_rpm != "?",
+    price != "?"
+  ) %>% 
+  mutate(
+    stroke = as.numeric(stroke),
+    bore = as.numeric(bore),
+    horsepower = as.numeric(horsepower),
+    peak_rpm = as.numeric(peak_rpm),
+    price = as.numeric(price)
+  )
+
+featurePlot(cars2, cars2$price)
+#positive engine size, horsepower
+#negative city and highway mpg
+
+ggplot(cars2, aes(price)) + geom_histogram()
+
+# train-test split
+train_indices <- createDataPartition(y = cars2[['price']],
+                                     p = 0.7,
+                                     list = FALSE)
+train_data <- cars2[train_indices,]
+test_data <- cars2[-train_indices,]
+
+# cross-validation and hyperparameter optimization
+
+train_control <- trainControl(method = 'cv', 
+                              number = 5)
+
+knn_grid <- expand.grid(k = 1:20)
+
+# chosing a model
+
+knn_model <- train(price ~ .,
+                   data = train_data,
+                   method = 'knn',
+                   trControl = train_control,
+                   preProcess = c('center', 'scale'),
+                   tuneGrid = knn_grid)
+
+#final model evaluation
+predictions <- predict(knn_model, newdata = test_data)
+postResample(pred = predictions, obs = test_data$price)
 
